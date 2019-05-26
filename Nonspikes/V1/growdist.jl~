@@ -1,0 +1,8 @@
+function growDistal(neuron::Neuron, preState)
+
+    maxDistSyns::Int = 100
+
+    for col in eachindex(preState)
+        for actnrn in findin(preState[col], true)
+
+            

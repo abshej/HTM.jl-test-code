@@ -1,0 +1,116 @@
+include("Units.jl")
+include("Dendrites.jl")
+
+
+function totalDendrites(neuron::Neuron)
+#= Returns total number of distal dendrites on neuron =#
+
+    length(neuron.distal)
+end
+
+
+function distalDendrite!(neuron::Neuron)
+#= Add a distal dendrite to a neuron =#
+
+    push!(neuron.distal, DDendrite([]))
+end
+
+
+function computeNeuronFF(neuron::Neuron, inpSpace)
+#= Return true if neuron is activated using FF input to proximal dendrite =#
+
+    return proximalSpike(neuron.proximal, inpSpace) #since we use only single proximal dendrite
+end
+
+
+function predictions(neuron::Neuron, preState)
+#= Returns true if neuron is put in predictive state using distal dendrites =#
+    
+    dCount::Int = 0
+    
+    for dendrite in neuron.distal
+        if distalSpike(dendrite, preState) == true
+            dCount += 1
+        end
+    end
+
+    if dCount > 0 # if any distal dendrite is spiking
+        return true # the neuron goes into predictive state
+    else
+        return false
+    end
+end
+
+#=
+function growDistal(neuron::Neuron, preState)
+#= Grow distal connection with neurons active during preState =#
+    
+    maxDistSyns::Int = 100
+    
+    for col in eachindex(preState)
+        for actnrn in findin(preState[col], true)
+
+            # if there are no distal dendrites present on the neuron
+            if length(neuron.distal) == 0
+                distalDendrite!(neuron)
+            end
+            
+            # if max synapses on dendrite reached
+            if length(neuron.distal[end].synapses) > maxDistSyns 
+                distalDendrite!(neuron) # add a distal dendrite
+                push!(neuron.distal[end].synapses, [col, actnrn, Float16(0.3)]) # add synapse to newly added dendrite
+            else
+                push!(neuron.distal[end].synapses, [col, actnrn, Float16(0.3)]) # add synapse to last distal dendrite
+            end
+        end
+    end
+    
+end
+=#
+
+
+function synIncrement!(neuron::Neuron, neuronID::Tuple{Int, Int})
+
+    incremented::Bool = false
+    
+    for dd in eachindex(neuron.distal)
+        for syn in eachindex(neuron.distal[dd].synapses)
+            if neuron.distal[dd].synapses[syn][1] == col && neuron.distal[dd].synapses[syn][2] == actnrn
+                neuron.distal[dd].synapses[syn][3] += 0.1
+                incremented = true
+            end
+        end
+    end
+
+    return incremented
+end
+
+
+function growDistal!(neuron::Neuron, preState)
+
+    maxDistSyns::Int = 100
+
+    for col in eachindex(preState)
+        for actnrn in findin(preState[col], true)
+
+            if length(neuron.distal) == 0
+                distalDendrite!(neuron)
+            end
+
+            #incremented = synIncrement!(neuron, (col, actnrn))
+
+            if synIncrement!(neuron, (col, actnrn)) == false
+
+                if length(neuron.distal[end].synapses) > maxDistSyns
+                    distalDendrite!(neuron)
+                    push!(neuron.distal[end].synapses, [col,actnrn,Float16(0.3)])
+                else
+                    push!(neuron.distal[end].synapses, [col,actnrn,Float16(0.3)])
+                end
+            end
+
+        end
+    end
+
+end
+    

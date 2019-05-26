@@ -1,0 +1,105 @@
+include("Constant.jl")
+
+
+
+
+function proximalActivation(layer::Layer, input::RawInput)
+
+    activeStates = zeros(Int8, prod(layer.dims))
+    input = Set(sparsevec(input).nzind)
+
+    for n in eachindex(layer.proximal)
+        if length(intersect(Set(layer.proximal[n].nzind), input)) > 0
+            activeStates[n] = Int8(1)
+        end
+    end
+    
+    return sparsevec(activeStates)
+end
+
+
+
+
+function distalActivation(layer::Layer, activeStates::SparseVector)
+
+    predictiveStates = zeros(Int8, prod(layer.dims))
+    activeStates = activeStates.nzind
+    syn_thres = Int8(layer.params.syn_thres - 1)
+
+    for n in eachindex(layer.distal)
+        for d in eachindex(layer.distal[n])
+            if length(intersect((isless.(syn_thres, layer.distal[n][d])).nzind, activeStates)) > layer.params.dist_thres
+                predictiveStates[n] = true
+                break
+            end
+        end
+    end
+
+    return sparsevec(predictiveStates)
+end
+
+
+
+
+function incrementnew(perm, inc, def)
+
+    if perm == 0 && inc != 0
+        return def
+    elseif perm + inc > 100
+        return 100
+    else
+        return perm + inc
+    end
+
+end
+
+
+
+
+function increment(perm, inc)
+
+    if perm+inc > 100
+        return 100
+    else
+        return perm+inc
+    end
+end
+
+
+
+
+function decrement(perm, dec)
+    if perm-dec < 0
+        return 0
+    else
+        return perm-dec
+    end
+end
+
+
+
+
+function distalUpdate!(layer::Layer, priorActiveStates::SparseVector, predictions::SparseVector, currentActiveStates::SparseVector)
+
+    correctPreds = currentActiveStates.nzind
+    wrongPreds = copy(predictions)
+    wrongPreds[intersect(currentActiveStates.nzind, predictions.nzind)] = 0
+    dropzeros!(wrongPreds)
+     wrongPreds = wrongPreds.nzind
+    filter1 = (priorActiveStates * layer.params.syn_inc)
+    filter2 = (priorActiveStates * layer.params.syn_dec)
+    
+    for i in correctPreds, j in eachindex(layer.distal[i])
+        if j == length(layer.distal[i])
+            layer.distal[i][j] = incrementnew.(layer.distal[i][j], filter1, layer.params.syn_def)
+        else
+            layer.distal[i][j] = increment.(layer.distal[i][j], filter1)
+        end
+    end
+
+    for k in wrongPreds, l in eachindex(layer.distal[k])
+        layer.distal[k][l] = decrement.(layer.distal[k][l], filter2)
+    end
+
+    nothing
+end
